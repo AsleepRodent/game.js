@@ -1,0 +1,1 @@
+import { WindowShouldClose } from "raylib"
