@@ -1,5 +1,5 @@
-import type { Actor } from "./actor.js"
-import type { Scene } from "./scene.js"
+import type { Actor } from "../actor.js"
+import type { Scene } from "../scene.js"
 
 import { nanoid } from "nanoid"
 

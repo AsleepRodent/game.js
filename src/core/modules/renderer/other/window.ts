@@ -34,4 +34,8 @@ export class Window {
             r.CloseWindow()
         }
     }
+    
+    public update(dt: number): void {
+        
+    }
 }

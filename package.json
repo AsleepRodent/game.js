@@ -1,16 +1,15 @@
 {
-  "name": "game.js",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "game.js", 
+  "version": "0.1.0",
+  "description": "Game engine based on Raylib and a modular architecture",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "type": "module",
-  "directories": {
-    "test": "tests"
-  },
   "scripts": {
-    "test": "npx tsx tests/main.ts"
+    "test": "npx tsx tests/main.ts",
+    "build": "tsc",
+    "dev": "tsc -w"
   },
-  "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -23,7 +22,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.0.3",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.0.0",
     "typescript": "^5.9.3"
   }
 }
