@@ -4,6 +4,8 @@
 
 Built upon the robust foundations of raylib, it provides a sophisticated Object-Oriented architectural pattern, empowering developers with rapid prototyping capabilities and highly modular tools.
 
+> **Note:** This engine is currently **under heavy development**. It is not yet feature-complete and will be officially available soon.
+
 *NOTE for ARCHITECTS: game.ts is an engine built for those who value clean OOP; no bloated editors, no hidden abstractions... just you, your logic, and the raw power of Raylib.*
 
 Ready to build? Explore the [test suite!](https://github.com/AsleepRodent/game.js/tree/main/tests)
@@ -18,8 +20,9 @@ Ready to build? Explore the [test suite!](https://github.com/AsleepRodent/game.j
 
 Features
 --------
-  - **No External Dependencies**: Only raylib and your imagination.
+  - **Zero External Dependencies**: Only raylib and your imagination.
   - **Pure OOP Architecture**: Robust Actor-Scene-Director pattern for structured logic.
+  - **Decoupled Messaging**: Advanced Signal & Dispatch system for inter-module communication.
   - **Native TypeScript**: Full type safety, autocompletion, and modern ECMAScript features.
   - **Hardware Accelerated**: High-performance rendering via raylib's OpenGL abstraction.
   - **Free and Open Source**: Licensed under zlib/libpng.
