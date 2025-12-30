@@ -19,7 +19,7 @@ Ready to build? Explore the [test suite!](https://github.com/AsleepRodent/game.j
 
 Features
 --------
-  - **Zero External Dependencies**: Only raylib and your imagination.
+  - **No External Dependencies**: Only raylib and your imagination.
   - **Pure OOP Architecture**: Robust Actor-Scene-Director pattern for structured logic.
   - **Decoupled Messaging**: Advanced Signal & Dispatch system for inter-module communication.
   - **Native TypeScript**: Full type safety, autocompletion, and modern ECMAScript features.
