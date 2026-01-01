@@ -2,7 +2,7 @@ import { Module, type ModuleAttributes } from "../module.js";
 import type { Game } from "../game/game.js";
 import type { Renderer } from "../renderer/renderer.js";
 
-import r from "raylib"
+import r from "@r1tsuu/raylib"
 
 interface LoopAttributes extends ModuleAttributes {}
 

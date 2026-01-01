@@ -1,5 +1,6 @@
-import r from "raylib"
 import type { Module } from "../../module.js";
+
+import r from "@r1tsuu/raylib"
 
 interface WindowAttributes {
     parent: Module;

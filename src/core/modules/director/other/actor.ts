@@ -96,6 +96,21 @@ export class Actor {
         const index = this.cast.findIndex(actor => actor.id === id || actor.name === id);
         if (index !== -1) this.cast.splice(index, 1);
     }
+    
+    public get game(): any {
+        let current: any = this.parent;
+
+        while (current) {
+            if (current.scenes && current.parent) {
+                return current.parent;
+            }
+
+            if (!current.parent) break;
+            current = current.parent;
+        }
+
+        return undefined;
+    }
 
     public update(dt: number): void {
         if (!this.enabled) return;

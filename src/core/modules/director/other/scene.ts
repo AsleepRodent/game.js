@@ -1,4 +1,5 @@
 import type { Actor } from "./actor.js"
+import type { Camera } from "./traits/camera.js"
 import { Director } from "../director.js"
 
 export interface SceneAttributes {
@@ -12,6 +13,7 @@ export class Scene {
     public name: string
     public index: number
     public cast: Actor[]
+    public camera: Camera | null
     public enabled: boolean
     [key: string]: any;
 
@@ -19,6 +21,7 @@ export class Scene {
         this.parent = attributes.parent;
         this.name = attributes.name ?? "Unknown";
         this.index = attributes.index ?? 0;
+        this.camera = null
         this.cast = []
         this.enabled = false
 

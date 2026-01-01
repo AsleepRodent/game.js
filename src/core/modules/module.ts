@@ -6,7 +6,7 @@ export interface ModuleAttributes {
     id?: string;
 }
 
-export class Module {
+export abstract class Module {
     public parent: any;
     public name: string;
     public id: string;
@@ -22,6 +22,7 @@ export class Module {
 
     public start(): void {this.enabled = true}
     public stop(): void {this.enabled = false}
+
     public update(dt: number): void {}
     public render(): void {}
 

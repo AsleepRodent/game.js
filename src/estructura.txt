@@ -1,0 +1,1666 @@
+FILE: .
+----------
+------------------------------
+\n
+FILE: ./core
+----------
+------------------------------
+\n
+FILE: ./core/modules
+----------
+------------------------------
+\n
+FILE: ./core/modules/game
+----------
+------------------------------
+\n
+FILE: ./core/modules/game/game.ts
+----------
+------------------------------
+import { Module, type ModuleAttributes } from "../module.js";
+import { Loop } from "../loop/loop.js";
+import { Renderer } from "../renderer/renderer.js";
+import { Director } from "../director/director.js";
+import { Dispatch } from "../dispatch/dispatch.js";
+
+export interface GameAttributes extends ModuleAttributes {}
+
+export class Game extends Module {
+    public modules: Record<string, Module>
+
+    constructor(attributes: GameAttributes) {
+        super(attributes);
+        this.modules = {
+            "loop": new Loop({parent:this}),
+            "renderer": new Renderer({parent:this}),
+            "director": new Director({parent:this}),
+            "dispatch": new Dispatch({parent:this})
+        }
+    }
+
+    public onStart(): void {}
+    public onUpdate(dt: number): void {}
+
+    public override start(): void {
+        this.modules.renderer!.start()
+        this.modules.dispatch!.start()
+        this.modules.director!.start()
+        this.modules.loop!.start()
+        this.enabled = true
+    } 
+
+    public override stop(): void {
+        this.modules.renderer!.stop()
+        this.modules.director!.stop()
+        this.modules.dispatch!.stop()
+        this.modules.loop!.stop()
+        this.enabled = false
+    }
+}
+\n
+FILE: ./core/modules/loop
+----------
+------------------------------
+\n
+FILE: ./core/modules/loop/loop.ts
+----------
+------------------------------
+import { Module, type ModuleAttributes } from "../module.js";
+import type { Game } from "../game/game.js";
+import type { Renderer } from "../renderer/renderer.js";
+
+import r from "@r1tsuu/raylib"
+
+interface LoopAttributes extends ModuleAttributes {}
+
+export class Loop extends Module {
+    public queue: Module[][];
+
+    constructor(attributes: LoopAttributes) {
+        super(attributes)
+        this.queue = [[], [], [], [], []];
+    }
+
+    public addToQueue(module: Module, layer: number): void {
+        if (layer >= 0 && layer < this.queue.length) {
+            const exists = this.queue.some(l => l.some(m => m.id === module.id));
+
+            if (!exists) {
+                this.queue[layer]!.push(module);
+            }
+        }
+    }
+
+    public removeFromQueue(target: Module | string): void {
+        const idToFind = typeof target === "string" ? target : target.id;
+
+        for (const layer of this.queue) {
+            const index = layer.findIndex(m => m.id === idToFind);
+            if (index !== -1) {
+                layer.splice(index, 1);
+                break;
+            }
+        }
+    }
+
+    private run(): void {
+        if (this.enabled) {
+            const renderer = this.parent.modules.renderer as Renderer;
+            (this.parent as Game).onStart?.();
+
+            while (this.enabled && !r.WindowShouldClose()) {
+                const dt: number = r.GetFrameTime();
+
+                for (const layer of this.queue) {
+                    for (const module of layer) {
+                        if (module.enabled) {
+                            module.update(dt);
+                        }
+                    }
+                }
+
+                if (renderer && renderer.enabled) {
+                    renderer.render();
+                }
+
+                (this.parent as Game).onUpdate?.(dt);
+            }
+            this.stop();
+        }
+    }
+    
+    public override start(): void {
+        if (!this.enabled) {
+            this.enabled = true
+            this.run()
+        }
+    }
+}\n
+FILE: ./core/modules/module.ts
+----------
+------------------------------
+import { nanoid } from "nanoid"
+
+export interface ModuleAttributes {
+    parent: any;
+    name?: string;
+    id?: string;
+}
+
+export abstract class Module {
+    public parent: any;
+    public name: string;
+    public id: string;
+    public enabled: boolean;
+   
+
+    constructor(attributes: ModuleAttributes) {
+        this.parent = attributes.parent;
+        this.name = attributes.name ?? "Unknown";
+        this.id = attributes.id ?? nanoid(8);
+        this.enabled = false;
+    }
+
+    public start(): void {this.enabled = true}
+    public stop(): void {this.enabled = false}
+
+    public update(dt: number): void {}
+    public render(): void {}
+
+}\n
+FILE: ./core/modules/renderer
+----------
+------------------------------
+\n
+FILE: ./core/modules/renderer/other
+----------
+------------------------------
+\n
+FILE: ./core/modules/renderer/other/window.ts
+----------
+------------------------------
+import type { Module } from "../../module.js";
+
+import r from "@r1tsuu/raylib"
+
+interface WindowAttributes {
+    parent: Module;
+    title?: string;
+    width?: number;
+    height?: number;
+}
+
+export class Window {
+    public parent: Module
+    public title: string;
+    public width: number;
+    public height: number;
+    public enabled: boolean;
+
+    constructor(attributes: WindowAttributes) {
+        this.parent = attributes.parent 
+        this.title = attributes.title ?? "Unknown";
+        this.width = attributes.width ?? 800
+        this.height = attributes.height ?? 600
+        this.enabled = false
+    }
+
+    public open(): void {
+        if (!this.enabled) {
+            r.InitWindow(this.width, this.height, this.title)
+        }
+    }
+
+    public close(): void {
+        if (this.enabled) {
+            r.CloseWindow()
+        }
+    }
+    
+    public update(dt: number): void {
+        
+    }
+}\n
+FILE: ./core/modules/renderer/other/render.ts
+----------
+------------------------------
+import type { Renderer } from "../renderer.js"
+import type { Transform } from "../../director/other/traits/transform.js"
+import { Dim } from "../../../values/dim.js"
+import { Vector } from "../../../values/vector.js"
+import { Rotation } from "../../../values/rotation.js" 
+import { Actor } from "../../director/other/actor.js"
+
+export enum RenderSpace { World = 0, Screen = 1 }
+
+interface RenderAttributes {
+    parent: Renderer,
+    space: RenderSpace
+    transform: Transform
+    position: Vector | Dim
+    size: Vector | Dim
+    rotation: Rotation
+    anchor: Vector
+}
+
+export class Render {
+    public parent: Renderer
+    public space: RenderSpace
+    public transform: Transform
+    public position: Vector | Dim
+    public size: Vector | Dim
+    public rotation: Rotation
+    public anchor: Vector
+    private _onRender: (data: any) => void
+
+    constructor(attributes: RenderAttributes, onRender: (data: any) => void) {
+        this.parent = attributes.parent
+        this.space = attributes.space
+        this.transform = attributes.transform
+        this.position = attributes.position
+        this.size = attributes.size
+        this.rotation = attributes.rotation
+        this.anchor = attributes.anchor
+        this._onRender = onRender
+    }
+
+    private resolve(value: Vector | Dim, parentSize: Vector): Vector {
+        if (value instanceof Vector) return value;
+        return new Vector({
+            x: (parentSize.x * value.scale.x) + value.offset.x,
+            y: (parentSize.y * value.scale.y) + value.offset.y,
+            z: (parentSize.z * value.scale.z) + value.offset.z
+        });
+    }
+
+    public getFinal() {
+        const worldPos = this.transform.worldPosition;
+        const worldSize = this.transform.worldSize;
+        const worldRot = this.transform.worldRotation;
+
+        const localSize = this.resolve(this.size, worldSize);
+
+        const localOffset = this.resolve(this.position, worldSize);
+
+        return {
+            position: new Vector({
+                x: worldPos.x + localOffset.x,
+                y: worldPos.y + localOffset.y,
+                z: worldPos.z + localOffset.z
+            }),
+            rotation: worldRot, 
+            size: localSize,
+            anchor: new Vector({
+                x: localSize.x * this.anchor.x,
+                y: localSize.y * this.anchor.y
+            }),
+            space: this.space,
+            depth: worldPos.z + localOffset.z
+        };
+    }
+
+    public refresh(position: Vector | Dim, size: Vector | Dim, rotation: Rotation, anchor: Vector): void {
+        this.position = position;
+        this.size = size;
+        this.rotation = rotation;
+        this.anchor = anchor;
+    }
+
+    public execute(data: any): void {
+        this._onRender(data);
+    }
+}\n
+FILE: ./core/modules/renderer/renderer.ts
+----------
+------------------------------
+import { Module, type ModuleAttributes } from "../module.js";
+import { Window } from "./other/window.js";
+import { Render, RenderSpace } from "./other/render.js";
+import type { Loop } from "../loop/loop.js";
+import r from "@r1tsuu/raylib"
+
+export class Renderer extends Module {
+    public window: Window;
+    private renders: Render[] = [];
+    private lastSeen: Map<Render, number> = new Map();
+
+    constructor(attributes: ModuleAttributes) {
+        super(attributes)
+        this.window = new Window({parent:this, title:this.parent.name})
+    }
+
+    public addToRenders(render: Render): void {
+        if (!this.renders.includes(render)) {
+            this.renders.push(render);
+        }
+        this.lastSeen.set(render, r.GetTime());
+    }
+
+    public override render(): void {
+        if (!this.enabled) return;
+
+        const loop = this.parent.modules.loop;
+        if (loop) {
+            for (const layer of loop.queue) {
+                for (const module of layer) {
+                    if (module !== this) module.render?.();
+                }
+            }
+        }
+
+        r.BeginDrawing();
+        r.ClearBackground(r.RAYWHITE);
+
+        const camera = this.parent.modules.director?.currentScene?.camera;
+
+        const renderData = this.renders
+            .filter(render => render.transform.parent.enabled)
+            .map(render => ({ 
+                instance: render, 
+                data: render.getFinal() 
+            }))
+            .sort((a, b) => a.data.depth - b.data.depth);
+
+        const camPos = camera?.raw.position ?? { x: 0, y: 0 };
+        const offsetX = this.window.width / 2;
+        const offsetY = this.window.height / 2;
+
+        for (const item of renderData) {
+            if (item.data.space === RenderSpace.World) {
+                item.data.position.x = item.data.position.x - camPos.x + offsetX;
+                item.data.position.y = item.data.position.y - camPos.y + offsetY;
+            }
+            item.instance.execute(item.data);
+        }
+
+        r.EndDrawing();
+        this.renders = []; 
+    }
+
+    public override start(): void {
+        if (!this.enabled) {
+            (this.parent.modules.loop as Loop).addToQueue(this, 999);
+            this.window.open();
+            this.enabled = true;
+        }
+    }
+}\n
+FILE: ./core/modules/director
+----------
+------------------------------
+\n
+FILE: ./core/modules/director/director.ts
+----------
+------------------------------
+import { Module, type ModuleAttributes } from "../module.js";
+import type { Scene } from "./other/scene.js";
+import type { Loop } from "../loop/loop.js";
+
+interface DirectorAttributes extends ModuleAttributes {}
+
+export class Director extends Module {
+    public scenes: Record<string, Scene>;
+    public currentScene: Scene | null;
+
+    constructor(attributes: DirectorAttributes) {
+        super(attributes);
+        this.scenes = {};
+        this.currentScene = null
+    }
+
+    public switchCurrentScene(target: Scene | string): void {
+        const nextScene = typeof target === "string" ? this.getFromScenes(target) : target;
+
+        if (nextScene) {
+            if (this.currentScene) {
+                this.currentScene.enabled = false;
+            }
+
+            this.currentScene = nextScene;
+            this.currentScene.enabled = true;
+        }
+    }
+
+    public getFromScenes(target: string): Scene | undefined {
+        if (this.scenes[target]) return this.scenes[target];
+
+        for (const name in this.scenes) {
+            const scene = this.scenes[name];
+            if (scene && (scene.name === target || (scene as any).id === target)) {
+                return scene;
+            }
+        }
+        return undefined;
+    }
+
+    public addToScenes(scene: Scene): void {
+        const exists = Object.values(this.scenes).some(
+            s => s === scene || s.name === scene.name
+        );
+
+        if (!exists) {
+            scene.parent = this;
+            this.scenes[scene.name] = scene;
+        }
+    }
+
+    public removeFromScenes(target: Scene | string): void {
+        const id = typeof target === "string" ? target : target.name;
+
+        if (this.currentScene && (this.currentScene === target || this.currentScene.name === id)) {
+            this.currentScene = null;
+        }
+
+        if (typeof target === "string" && this.scenes[target]) {
+            delete this.scenes[target];
+            return;
+        }
+
+        for (const name in this.scenes) {
+            const scene = this.scenes[name];
+            if (scene && (scene.name === id || (scene as any).id === id)) {
+                delete this.scenes[name];
+                break;
+            }
+        }
+    }
+
+    public override start(): void {
+        if (!this.enabled) {
+            const loop: Loop = this.parent.modules.loop as Loop;
+            if (loop) {
+                loop.addToQueue(this, 1);
+            }
+            this.enabled = true;
+        }
+    }
+
+    public override update(dt: number): void {
+        if (!this.enabled || !this.currentScene) return;
+        this.currentScene.update(dt);
+    }
+
+    public override render(): void {
+        if (!this.enabled || !this.currentScene) return;
+        this.currentScene.render();
+    }
+}\n
+FILE: ./core/modules/director/other
+----------
+------------------------------
+\n
+FILE: ./core/modules/director/other/scene.ts
+----------
+------------------------------
+import type { Actor } from "./actor.js"
+import type { Camera } from "./traits/camera.js"
+import { Director } from "../director.js"
+
+export interface SceneAttributes {
+    parent: Director
+    name?: string
+    index?: number
+}
+
+export class Scene {
+    public parent: Director
+    public name: string
+    public index: number
+    public cast: Actor[]
+    public camera: Camera | null
+    public enabled: boolean
+    [key: string]: any;
+
+    constructor(attributes: SceneAttributes) {
+        this.parent = attributes.parent;
+        this.name = attributes.name ?? "Unknown";
+        this.index = attributes.index ?? 0;
+        this.camera = null
+        this.cast = []
+        this.enabled = false
+
+        if (this.parent && "addToScenes" in this.parent) {
+            (this.parent as any).addToScenes(this);
+        }
+
+        return new Proxy(this, {
+            get: (target, prop: string | symbol) => {
+                if (prop in target) return (target as any)[prop];
+                if (typeof prop === "string") return target.getFromCast(prop);
+                return undefined;
+            }
+        });
+    }
+
+    public getFromCast(target: Actor | string): Actor | undefined {
+        const id = typeof target === "string" ? target : target.id;
+        return this.cast.find(actor => actor.id === id || actor.name === id);
+    }
+
+    public addToCast(target: Actor): void {
+        const exists = this.cast.some(actor => actor.id === target.id);
+        if (!exists) {
+            target.parent = this;
+            this.cast.push(target);
+        }
+    }
+
+    public removeFromCast(target: Actor | string): void {
+        const id = typeof target === "string" ? target : target.id;
+        const index = this.cast.findIndex(actor => actor.id === id || actor.name === id);
+        if (index !== -1) this.cast.splice(index, 1);
+    }
+
+    public update(dt: number): void {
+        if (!this.enabled) return;
+        for (const actor of this.cast) actor.update(dt);
+    }
+
+    public render(): void {
+        if (!this.enabled) return;
+        for (const actor of this.cast) actor.render();
+    }
+}\n
+FILE: ./core/modules/director/other/actor.ts
+----------
+------------------------------
+import type { Scene } from "./scene.js"
+import type { Trait } from "./traits/trait.js"
+import { nanoid } from "nanoid"
+
+interface ActorAttributes {
+    parent: Scene | Actor
+    name?: string
+    id?: string
+}
+
+export class Actor {
+    public parent: Scene | Actor
+    public name: string
+    public id: string
+    public cast: Actor[]
+    public traits: Record<string, Trait>
+    public enabled: boolean
+    [key: string]: any;
+
+    constructor(attributes: ActorAttributes) {
+        this.parent = attributes.parent;
+        this.name = attributes.name ?? "Actor";
+        this.id = attributes.id ?? nanoid(8);
+        this.cast = []
+        this.traits = {}
+        this.enabled = true
+        
+        if (this.parent && "addToCast" in this.parent) {
+            (this.parent as any).addToCast(this);
+        }
+
+        return new Proxy(this, {
+            get: (target, prop: string | symbol) => {
+                if (prop in target) return (target as any)[prop];
+
+                if (typeof prop === "string") {
+                    const actor = target.getFromCast(prop);
+                    if (actor) return actor;
+
+                    const trait = target.getFromTraits(prop);
+                    if (trait) return trait;
+                }
+                return undefined;
+            }
+        });
+    }
+
+    public getFromTraits<T extends Trait>(target: string): T | undefined {
+        if (this.traits[target]) return this.traits[target] as T;
+        for (const name in this.traits) {
+            const trait = this.traits[name];
+            if (trait && (trait.id === target || trait.name === target)) return trait as T;
+        }
+        return undefined;
+    }
+
+    public addToTraits(trait: Trait): void {
+        const traitClass = trait.constructor;
+        const exists = Object.values(this.traits).some(t => t?.constructor === traitClass);
+        if (!exists) {
+            trait.parent = this; 
+            this.traits[trait.name] = trait;
+        }
+    }
+
+    public removeFromTraits(target: Trait | string): void {
+        const id = typeof target === "string" ? target : target.id;
+        if (typeof target === "string" && this.traits[target]) {
+            delete this.traits[target];
+            return;
+        }
+        for (const name in this.traits) {
+            const trait = this.traits[name];
+            if (trait && (trait.id === id || trait.name === id)) {
+                delete this.traits[name];
+                break;
+            }
+        }
+    }
+
+    public getFromCast(target: Actor | string): Actor | undefined {
+        const id = typeof target === "string" ? target : target.id;
+        return this.cast.find(actor => actor.id === id || actor.name === id);
+    }
+
+    public addToCast(target: Actor): void {
+        const exists = this.cast.some(actor => actor.id === target.id);
+        if (!exists) {
+            target.parent = this;
+            this.cast.push(target);
+        }
+    }
+
+    public removeFromCast(target: Actor | string): void {
+        const id = typeof target === "string" ? target : target.id;
+        const index = this.cast.findIndex(actor => actor.id === id || actor.name === id);
+        if (index !== -1) this.cast.splice(index, 1);
+    }
+    
+    public get game(): any {
+        let current: any = this.parent;
+
+        while (current) {
+            if (current.scenes && current.parent) {
+                return current.parent;
+            }
+
+            if (!current.parent) break;
+            current = current.parent;
+        }
+
+        return undefined;
+    }
+
+    public update(dt: number): void {
+        if (!this.enabled) return;
+        for (const key in this.traits) this.traits[key]?.update(dt);
+        for (const actor of this.cast) actor.update(dt);
+    }
+
+    public render(): void {
+        if (!this.enabled) return;
+        for (const key in this.traits) this.traits[key]?.render();
+        for (const actor of this.cast) actor.render();
+    }
+}\n
+FILE: ./core/modules/director/other/traits
+----------
+------------------------------
+\n
+FILE: ./core/modules/director/other/traits/trait.ts
+----------
+------------------------------
+import type { Actor } from "../actor.js"
+import type { Scene } from "../scene.js"
+import { nanoid } from "nanoid"
+
+export interface TraitAttributes {
+    parent: Actor | Scene,
+    name?: string,
+    id?: string
+}
+
+export abstract class Trait {
+    parent: Actor | Scene
+    name: string
+    id: string
+    enabled: boolean
+
+    constructor(attributes: TraitAttributes) {
+        this.parent = attributes.parent
+        this.name = attributes.name ?? this.constructor.name
+        this.id = attributes.id ?? nanoid(8)
+        this.enabled = true
+
+        if (this.parent && "addToTraits" in this.parent) {
+            (this.parent as any).addToTraits(this);
+        }
+    }
+
+    public update(dt: number): void {}
+    public render(): void {}
+}\n
+FILE: ./core/modules/director/other/traits/transform.ts
+----------
+------------------------------
+import { Trait, type TraitAttributes } from "./trait.js";
+import { Vector } from "../../../../values/vector.js";
+import { Rotation } from "../../../../values/rotation.js";
+import { Dim } from "../../../../values/dim.js";
+import { Actor } from "../actor.js";
+import { Frame } from "./frame.js";
+
+interface TransformAttributes extends TraitAttributes {
+    position?: Vector | Dim;
+    size?: Vector | Dim;
+    rotation?: Rotation;
+}
+
+export class Transform extends Trait {
+    public position: Vector | Dim;
+    public size: Vector | Dim;
+    public rotation: Rotation;
+
+    constructor(attributes: TransformAttributes) {
+        super(attributes);
+        this.position = attributes.position ?? new Vector({});
+        this.size = attributes.size ?? new Vector({ x: 1, y: 1, z: 1 });
+        this.rotation = attributes.rotation ?? new Rotation({});
+    }
+
+    public get worldPosition(): Vector {
+        const actor = this.parent as Actor;
+        let localPos: Vector;
+
+        if (this.position instanceof Dim) {
+            if (actor.parent instanceof Actor) {
+                const parentTransform = actor.parent.getFromTraits<Transform>("Transform");
+                if (parentTransform) {
+                    const parentSize = parentTransform.worldSize;
+                    
+                    // Obtener el anchor del Frame del padre (si existe)
+                    const parentFrame = actor.parent.getFromTraits<Frame>("Frame");
+                    const parentAnchor = parentFrame?.anchor ?? new Vector({ x: 0.5, y: 0.5 });
+                    
+                    // Calcular el origen del sistema de coordenadas del padre
+                    // Origen = posición del padre - (tamaño del padre * anchor del padre)
+                    const parentOrigin = new Vector({
+                        x: -parentSize.x * parentAnchor.x,
+                        y: -parentSize.y * parentAnchor.y,
+                        z: 0
+                    });
+                    
+                    // Posición local = origen + (escala * tamaño del padre) + offset
+                    localPos = new Vector({
+                        x: parentOrigin.x + (parentSize.x * this.position.scale.x) + this.position.offset.x,
+                        y: parentOrigin.y + (parentSize.y * this.position.scale.y) + this.position.offset.y,
+                        z: (parentSize.z * this.position.scale.z) + this.position.offset.z
+                    });
+                } else {
+                    localPos = this.position.offset.clone();
+                }
+            } else {
+                localPos = this.position.offset.clone();
+            }
+        } else {
+            localPos = this.position.clone();
+        }
+
+        if (actor.parent instanceof Actor) {
+            const parentTransform = actor.parent.getFromTraits<Transform>("Transform");
+            if (parentTransform) {
+                const pRot = parentTransform.worldRotation.z * (Math.PI / 180);
+                const rotatedX = localPos.x * Math.cos(pRot) - localPos.y * Math.sin(pRot);
+                const rotatedY = localPos.x * Math.sin(pRot) + localPos.y * Math.cos(pRot);
+
+                const pPos = parentTransform.worldPosition;
+                return new Vector({
+                    x: pPos.x + rotatedX,
+                    y: pPos.y + rotatedY,
+                    z: pPos.z + localPos.z
+                });
+            }
+        }
+        return localPos;
+    }
+
+    public get worldSize(): Vector {
+        const actor = this.parent as Actor;
+        
+        if (this.size instanceof Dim) {
+            if (actor.parent instanceof Actor) {
+                const parentTransform = actor.parent.getFromTraits<Transform>("Transform");
+                if (parentTransform) {
+                    const parentSize = parentTransform.worldSize;
+                    return new Vector({
+                        x: (parentSize.x * this.size.scale.x) + this.size.offset.x,
+                        y: (parentSize.y * this.size.scale.y) + this.size.offset.y,
+                        z: (parentSize.z * this.size.scale.z) + this.size.offset.z
+                    });
+                } else {
+                    return this.size.offset.clone();
+                }
+            } else {
+                return this.size.offset.clone();
+            }
+        } else {
+            return this.size.clone();
+        }
+    }
+
+    public get worldRotation(): Rotation {
+        const actor = this.parent as Actor;
+        if (actor.parent instanceof Actor) {
+            const parentTransform = actor.parent.getFromTraits<Transform>("Transform");
+            if (parentTransform) {
+                return parentTransform.worldRotation.add(this.rotation);
+            }
+        }
+        return new Rotation({ x: this.rotation.x, y: this.rotation.y, z: this.rotation.z });
+    }
+}\n
+FILE: ./core/modules/director/other/traits/camera.ts
+----------
+------------------------------
+import { Trait, type TraitAttributes } from "./trait.js";
+import { Rotation } from "../../../../values/rotation.js";
+import { Vector } from "../../../../values/vector.js";
+import { Transform } from "./transform.js";
+import type { Actor } from "../actor.js";
+
+interface CameraAttributes extends TraitAttributes {
+    offset?: Vector
+    rotation?: Rotation
+    zoom?: number
+}
+
+export class Camera extends Trait {
+    public offset: Vector
+    public rotation: Rotation
+    public zoom: number
+
+    constructor(attributes: CameraAttributes) {
+        super(attributes)
+        this.offset = attributes.offset ?? new Vector({})
+        this.rotation = attributes.rotation ?? new Rotation({})
+        this.zoom = attributes.zoom ?? 1.0
+    }
+
+    public get raw() {
+        const actor = this.parent as Actor;
+        const transform = actor?.getFromTraits<Transform>("Transform");
+        if (!transform) throw new Error("Camera needs a Transform");
+
+        const pos = transform.worldPosition.add(this.offset);
+        
+        return {
+            position: { x: pos.x, y: pos.y },
+            zoom: this.zoom
+        };
+    }
+}\n
+FILE: ./core/modules/director/other/traits/frame.ts
+----------
+------------------------------
+import { Trait, type TraitAttributes } from "./trait.js";
+import { Render, RenderSpace } from "../../../renderer/other/render.js";
+import { Vector } from "../../../../values/vector.js";
+import { Dim } from "../../../../values/dim.js";
+import { Rotation } from "../../../../values/rotation.js";
+import type { Actor } from "../actor.js";
+import r from "@r1tsuu/raylib";
+
+interface FrameAttributes extends TraitAttributes {
+    position?: Vector | Dim;
+    size?: Vector | Dim;
+    rotation?: Rotation;
+    anchor?: Vector;
+    backgroundColor?: r.Color;
+    space?: RenderSpace;
+}
+
+export class Frame extends Trait {
+    public position: Vector | Dim;
+    public size: Vector | Dim;
+    public rotation: Rotation;
+    public anchor: Vector;
+    public backgroundColor: r.Color;
+    public space: RenderSpace;
+    private renderCommand: Render;
+
+    constructor(attributes: FrameAttributes) {
+        super(attributes);
+        
+        this.position = attributes.position ?? new Dim({});
+        this.size = attributes.size ?? new Dim({ offset: new Vector({ x: 100, y: 100 }) });
+        this.rotation = attributes.rotation ?? new Rotation({});
+        this.anchor = attributes.anchor ?? new Vector({ x: 0.5, y: 0.5 });
+        this.backgroundColor = attributes.backgroundColor ?? r.GRAY;
+        this.space = attributes.space ?? RenderSpace.World;
+
+        const actor = this.parent as Actor;
+        const renderer = actor.game.modules.renderer;
+
+        this.renderCommand = new Render({
+            parent: renderer,
+            space: this.space,
+            transform: actor.getFromTraits("Transform")!,
+            position: this.position,
+            size: this.size,
+            rotation: this.rotation,
+            anchor: this.anchor
+        }, (data) => {
+            r.DrawRectanglePro(
+                { x: data.position.x, y: data.position.y, width: data.size.x, height: data.size.y },
+                { x: data.anchor.x, y: data.anchor.y },
+                data.rotation.z,
+                this.backgroundColor
+            );
+        });
+    }
+
+    public override render(): void {
+        this.renderCommand.refresh(this.position, this.size, this.rotation, this.anchor);
+        this.parent.game.modules.renderer.addToRenders(this.renderCommand);
+    }
+}\n
+FILE: ./core/modules/dispatch
+----------
+------------------------------
+\n
+FILE: ./core/modules/dispatch/dispatch.ts
+----------
+------------------------------
+import { Module, type ModuleAttributes } from "../module.js";
+import { Signal } from "./other/signal.js";
+
+interface DispatchAttributes extends ModuleAttributes {}
+
+export class Dispatch extends Module {
+    public signals: Record<string, Signal>;
+    [key: string]: any;
+
+    constructor(attributes: DispatchAttributes) {
+        super(attributes);
+        this.signals = {};
+
+        return new Proxy(this, {
+            get: (target, prop: string | symbol) => {
+                if (prop in target) return (target as any)[prop];
+
+                if (typeof prop === "string") {
+                    const signal = target.getFromSignals(prop);
+                    if (signal) return signal;
+                }
+                return undefined;
+            }
+        });
+    }
+
+    public getFromSignals(target: string): Signal | undefined {
+        if (this.signals[target]) return this.signals[target];
+
+        for (const key in this.signals) {
+            const signal = this.signals[key];
+            if (signal && (signal.id === target || signal.name === target)) {
+                return signal;
+            }
+        }
+        return undefined;
+    }
+
+    public addToSignals(signal: Signal): void {
+        const exists = Object.values(this.signals).some(
+            s => s === signal || s.id === signal.id
+        );
+
+        if (!exists) {
+            this.signals[signal.name] = signal;
+        }
+    }
+
+    public removeFromSignals(target: Signal | string): void {
+        const id = typeof target === "string" ? target : target.id;
+        
+        if (typeof target === "string" && this.signals[target]) {
+            delete this.signals[target];
+            return;
+        }
+
+        for (const key in this.signals) {
+            const signal = this.signals[key];
+            if (signal && (signal.id === id || signal.name === id)) {
+                delete this.signals[key];
+                break;
+            }
+        }
+    }
+
+    public override start(): void {
+        this.enabled = true;
+    }
+}\n
+FILE: ./core/modules/dispatch/other
+----------
+------------------------------
+\n
+FILE: ./core/modules/dispatch/other/signal.ts
+----------
+------------------------------
+import type { Dispatch } from "../dispatch.js";
+import { nanoid } from "nanoid";
+
+export interface SignalAttributes {
+    parent: Dispatch;
+    name?: string;
+    id?: string;
+}
+
+export class Connection {
+    constructor(private disconnectFn: () => void) {}
+    public disconnect(): void {
+        this.disconnectFn();
+    }
+}
+
+class InternalSignal {
+    private listeners: Set<Function> = new Set();
+
+    public connect(callback: Function): Connection {
+        this.listeners.add(callback);
+        return new Connection(() => this.listeners.delete(callback));
+    }
+
+    public _fire(...args: any[]): void {
+        this.listeners.forEach(fn => fn(...args));
+    }
+
+    public clear(): void {
+        this.listeners.clear();
+    }
+}
+
+export class Signal {
+    public parent: Dispatch;
+    public name: string;
+    public id: string;
+    private internal: InternalSignal;
+
+    constructor(attributes: SignalAttributes) {
+        this.parent = attributes.parent;
+        this.name = attributes.name ?? "Signal";
+        this.id = attributes.id ?? nanoid(8);
+        this.internal = new InternalSignal();
+
+        if (this.parent && "addToSignals" in this.parent) {
+            (this.parent as any).addToSignals(this);
+        }
+    }
+
+    public connect(callback: Function): Connection {
+        return this.internal.connect(callback);
+    }
+
+    public once(callback: Function): void {
+        const conn = this.internal.connect((...args: any[]) => {
+            callback(...args);
+            conn.disconnect();
+        });
+    }
+
+    public disconnectAll(): void {
+        this.internal.clear();
+    }
+
+    public fire(...args: any[]): void {
+        this.internal._fire(...args);
+    }
+}\n
+FILE: ./core/values
+----------
+------------------------------
+\n
+FILE: ./core/values/value.ts
+----------
+------------------------------
+export interface ValueAttributes {}
+
+export abstract class Value {
+    constructor(attributes: ValueAttributes) {}
+
+    public abstract add(other: any): Value;
+    public abstract sub(other: any): Value;
+    public abstract mul(scaler: number): Value;
+    public abstract div(scaler: number): Value;
+    public abstract inv(): Value;
+
+    public abstract equal(other: any): boolean;
+    public abstract clone(): Value;
+
+    public abstract toString(): string;
+}\n
+FILE: ./core/values/vector.ts
+----------
+------------------------------
+import { Value, type ValueAttributes } from "./value.js";
+import r from "@r1tsuu/raylib"
+
+interface VectorAttributes extends ValueAttributes {
+    x?: number,
+    y?: number
+    z?: number
+}
+
+export class Vector extends Value {
+    x: number
+    y: number
+    z: number
+
+    constructor(attributes: VectorAttributes) {
+        super(attributes)
+        this.x = attributes.x ?? 0
+        this.y = attributes.y ?? 0
+        this.z = attributes.z ?? 0
+    }
+
+    public get raw2D(): r.Vector2 {
+        return {
+            x: this.x,
+            y: this.y
+        } as r.Vector2
+    }
+
+    public get raw3D(): r.Vector3 {
+        return {
+            x: this.x,
+            y: this.y,
+            z: this.z
+        } as r.Vector3
+    }
+
+    public add(other: Vector): Vector {
+        return new Vector({
+            x: this.x + other.x,
+            y: this.y + other.y,
+            z: this.z + other.z
+        })
+    }
+
+    public sub(other: Vector): Vector {
+        return new Vector({
+            x: this.x - other.x,
+            y: this.y - other.y,
+            z: this.z - other.z
+        })
+    }
+
+    public mul(scaler: number): Vector {
+        return new Vector({
+            x: this.x * scaler,
+            y: this.y * scaler,
+            z: this.z * scaler
+        })
+    }
+
+    public div(scaler: number): Vector {
+        return new Vector({
+            x: this.x / scaler,
+            y: this.y / scaler,
+            z: this.z / scaler
+        })
+    }
+
+    public inv(): Vector {
+        return new Vector({ x: -this.x, y: -this.y, z: -this.z })
+    }
+
+    public equal(other: Vector): boolean {
+        return this.x === other.x && this.y === other.y && this.z === other.z
+    }
+
+    public clone(): Vector {
+        return new Vector({ x: this.x, y: this.y, z: this.z })
+    }
+
+    public toString(): string {
+        return `Vector(${this.x}, ${this.y}, ${this.z})`
+    }
+}\n
+FILE: ./core/values/dim.ts
+----------
+------------------------------
+import { Value } from "./value.js"
+import { Vector } from "./vector.js"
+
+interface DimAttributes {
+    scale?: Vector
+    offset?: Vector
+}
+
+export class Dim extends Value {
+    scale: Vector
+    offset: Vector
+
+    constructor(attributes: DimAttributes) {
+        super(attributes)
+        this.scale = attributes.scale ?? new Vector({})
+        this.offset = attributes.offset ?? new Vector({})
+    }
+
+    public get raw() {
+        return {
+            scale: this.scale.raw3D,
+            offset: this.offset.raw3D
+        }
+    }
+
+    public add(other: Dim): Dim {
+        return new Dim({
+            scale: this.scale.add(other.scale) as Vector,
+            offset: this.offset.add(other.offset) as Vector
+        })
+    }
+
+    public sub(other: Dim): Dim {
+        return new Dim({
+            scale: this.scale.sub(other.scale) as Vector,
+            offset: this.offset.sub(other.offset) as Vector
+        })
+    }
+
+    public mul(scaler: number): Dim {
+        return new Dim({
+            scale: this.scale.mul(scaler) as Vector,
+            offset: this.offset.mul(scaler) as Vector
+        })
+    }
+
+    public div(scaler: number): Dim {
+        return new Dim({
+            scale: this.scale.div(scaler) as Vector,
+            offset: this.offset.div(scaler) as Vector
+        })
+    }
+
+    public inv(): Dim {
+        return new Dim({
+            scale: this.scale.inv() as Vector,
+            offset: this.offset.inv() as Vector
+        })
+    }
+
+    public equal(other: Dim): boolean {
+        return this.scale.equal(other.scale) && this.offset.equal(other.offset)
+    }
+
+    public clone(): Dim {
+        return new Dim({
+            scale: this.scale.clone() as Vector,
+            offset: this.offset.clone() as Vector
+        })
+    }
+
+    public toString(): string {
+        return `Dim(Scale: ${this.scale}, Offset: ${this.offset})`
+    }
+}\n
+FILE: ./core/values/rect.ts
+----------
+------------------------------
+import { Value, type ValueAttributes } from "./value.js"
+import { Vector } from "./vector.js"
+import { Dim } from "./dim.js"
+
+import r from "@r1tsuu/raylib"
+
+interface RectAttributes extends ValueAttributes {
+    position?: Vector
+    size?: Dim
+}
+
+export class Rect extends Value {
+    position: Vector
+    size: Dim
+
+    constructor(attributes: RectAttributes) {
+        super(attributes)
+        this.position = attributes.position ?? new Vector({})
+        this.size = attributes.size ?? new Dim({})
+    }
+
+    public get raw(): r.Rectangle {
+        return {
+            x: this.position.x,
+            y: this.position.y,
+            width: this.size.offset.x,
+            height: this.size.offset.y
+        } as r.Rectangle
+    }
+
+    public add(other: Rect): Rect {
+        return new Rect({
+            position: this.position.add(other.position) as Vector,
+            size: this.size.add(other.size) as Dim
+        })
+    }
+
+    public sub(other: Rect): Rect {
+        return new Rect({
+            position: this.position.sub(other.position) as Vector,
+            size: this.size.sub(other.size) as Dim
+        })
+    }
+
+    public mul(scaler: number): Rect {
+        return new Rect({
+            position: this.position.mul(scaler) as Vector,
+            size: this.size.mul(scaler) as Dim
+        })
+    }
+
+    public div(scaler: number): Rect {
+        return new Rect({
+            position: this.position.div(scaler) as Vector,
+            size: this.size.div(scaler) as Dim
+        })
+    }
+
+    public inv(): Rect {
+        return new Rect({
+            position: this.position.inv() as Vector,
+            size: this.size.inv() as Dim
+        })
+    }
+
+    public equal(other: Rect): boolean {
+        return this.position.equal(other.position) && this.size.equal(other.size)
+    }
+
+    public clone(): Rect {
+        return new Rect({
+            position: this.position.clone() as Vector,
+            size: this.size.clone() as Dim
+        })
+    }
+
+    public toString(): string {
+        return `Rect(Pos: ${this.position}, Size: ${this.size})`
+    }
+}\n
+FILE: ./core/values/color.ts
+----------
+------------------------------
+import { Value, type ValueAttributes } from "./value.js";
+
+import r from "@r1tsuu/raylib"
+
+interface ColorAttributes extends ValueAttributes {
+    r?: number,
+    g?: number,
+    b?: number,
+    a?: number
+}
+
+export class Color extends Value {
+    r: number
+    g: number
+    b: number
+    a: number
+
+    constructor(attributes: ColorAttributes) {
+        super(attributes)
+        this.r = attributes.r ?? 255
+        this.g = attributes.g ?? 255
+        this.b = attributes.b ?? 255
+        this.a = attributes.a ?? 255
+    }
+
+    public get raw(): r.Color {
+        return {
+            r: this.r,
+            g: this.g,
+            b: this.b,
+            a: this.a
+        } as r.Color;
+    }
+
+    public add(other: Color): Color {
+        return new Color({
+            r: Math.min(255, this.r + other.r),
+            g: Math.min(255, this.g + other.g),
+            b: Math.min(255, this.b + other.b),
+            a: Math.min(255, this.a + other.a)
+        })
+    }
+
+    public sub(other: Color): Color {
+        return new Color({
+            r: Math.max(0, this.r - other.r),
+            g: Math.max(0, this.g - other.g),
+            b: Math.max(0, this.b - other.b),
+            a: Math.max(0, this.a - other.a)
+        })
+    }
+
+    public mul(scaler: number): Color {
+        return new Color({
+            r: Math.min(255, Math.max(0, this.r * scaler)),
+            g: Math.min(255, Math.max(0, this.g * scaler)),
+            b: Math.min(255, Math.max(0, this.b * scaler)),
+            a: this.a 
+        })
+    }
+
+    public div(scaler: number): Color {
+        return new Color({
+            r: this.r / scaler,
+            g: this.g / scaler,
+            b: this.b / scaler,
+            a: this.a
+        })
+    }
+
+    public inv(): Color {
+        return new Color({
+            r: 255 - this.r,
+            g: 255 - this.g,
+            b: 255 - this.b,
+            a: this.a
+        })
+    }
+
+    public equal(other: Color): boolean {
+        return this.r === other.r && this.g === other.g && 
+               this.b === other.b && this.a === other.a
+    }
+
+    public clone(): Color {
+        return new Color({ r: this.r, g: this.g, b: this.b, a: this.a })
+    }
+
+    public toString(): string {
+        return `RGBA(${this.r}, ${this.g}, ${this.b}, ${this.a})`
+    }
+}\n
+FILE: ./core/values/rotation.ts
+----------
+------------------------------
+import { Value, type ValueAttributes } from "./value.js";
+import r from "@r1tsuu/raylib"
+
+interface RotationAttributes extends ValueAttributes {
+    x?: number,
+    y?: number,
+    z?: number
+}
+
+export class Rotation extends Value {
+    x: number
+    y: number
+    z: number
+
+    constructor(attributes: RotationAttributes) {
+        super(attributes)
+        this.x = attributes.x ?? 0
+        this.y = attributes.y ?? 0
+        this.z = attributes.z ?? 0
+    }
+
+    public get raw2D(): number {
+        return this.z
+    }
+
+    public get raw3D(): r.Vector3 {
+        return r.Vector3(this.x, this.y, this.z)
+    }
+
+    public add(other: Rotation): Rotation {
+        return new Rotation({
+            x: (this.x + other.x) % 360,
+            y: (this.y + other.y) % 360,
+            z: (this.z + other.z) % 360
+        })
+    }
+
+    public sub(other: Rotation): Rotation {
+        return new Rotation({
+            x: (this.x - other.x) % 360,
+            y: (this.y - other.y) % 360,
+            z: (this.z - other.z) % 360
+        })
+    }
+
+    public mul(scaler: number): Rotation {
+        return new Rotation({
+            x: this.x * scaler,
+            y: this.y * scaler,
+            z: this.z * scaler
+        })
+    }
+
+    public div(scaler: number): Rotation {
+        return new Rotation({
+            x: this.x / scaler,
+            y: this.y / scaler,
+            z: this.z / scaler
+        })
+    }
+
+    public inv(): Rotation {
+        return new Rotation({ x: -this.x, y: -this.y, z: -this.z })
+    }
+
+    public equal(other: Rotation): boolean {
+        return (this.x % 360) === (other.x % 360) &&
+               (this.y % 360) === (other.y % 360) &&
+               (this.z % 360) === (other.z % 360)
+    }
+
+    public clone(): Rotation {
+        return new Rotation({ x: this.x, y: this.y, z: this.z })
+    }
+
+    public toString(): string {
+        return `Rotation(${this.x}º, ${this.y}º, ${this.z}º)`
+    }
+}\n
+FILE: ./core/values/range.ts
+----------
+------------------------------
+import { Value, type ValueAttributes } from "./value.js"
+
+interface RangeAttributes extends ValueAttributes {
+    min?: number
+    max?: number
+}
+
+export class Range extends Value {
+    min: number
+    max: number
+
+    constructor(attributes: RangeAttributes) {
+        super(attributes)
+        this.min = attributes.min ?? 0
+        this.max = attributes.max ?? 1
+    }
+
+    public get raw(): { min: number, max: number } {
+        return { min: this.min, max: this.max }
+    }
+
+    public get random(): number {
+        return Math.random() * (this.max - this.min) + this.min
+    }
+
+    public get center(): number {
+        return (this.min + this.max) / 2
+    }
+
+    public contains(value: number): boolean {
+        return value >= this.min && value <= this.max
+    }
+
+    public add(other: Range): Range {
+        return new Range({
+            min: this.min + other.min,
+            max: this.max + other.max
+        })
+    }
+
+    public sub(other: Range): Range {
+        return new Range({
+            min: this.min - other.min,
+            max: this.max - other.max
+        })
+    }
+
+    public mul(scaler: number): Range {
+        return new Range({
+            min: this.min * scaler,
+            max: this.max * scaler
+        })
+    }
+
+    public div(scaler: number): Range {
+        return new Range({
+            min: this.min / scaler,
+            max: this.max / scaler
+        })
+    }
+
+    public inv(): Range {
+        return new Range({ min: this.max, max: this.min })
+    }
+
+    public equal(other: Range): boolean {
+        return this.min === other.min && this.max === other.max
+    }
+
+    public clone(): Range {
+        return new Range({ min: this.min, max: this.max })
+    }
+
+    public toString(): string {
+        return `Range(${this.min} - ${this.max})`
+    }
+}\n
+FILE: ./index.ts
+----------
+------------------------------
+export * from "./core/modules/module.js";
+export * from "./core/modules/game/game.js";
+export * from "./core/modules/loop/loop.js";
+
+export * from "./core/modules/renderer/renderer.js";
+export * from "./core/modules/renderer/other/window.js";
+export { Render, RenderSpace } from "./core/modules/renderer/other/render.js";
+
+export * from "./core/modules/director/director.js";
+export * from "./core/modules/director/other/scene.js";
+export * from "./core/modules/director/other/actor.js";
+export * from "./core/modules/director/other/traits/trait.js";
+export * from "./core/modules/director/other/traits/transform.js";
+export * from "./core/modules/director/other/traits/camera.js";
+export * from "./core/modules/director/other/traits/frame.js";
+
+export * from "./core/modules/dispatch/dispatch.js";
+export * from "./core/modules/dispatch/other/signal.js";
+
+export * from "./core/values/value.js";
+export * from "./core/values/vector.js";
+export * from "./core/values/dim.js";
+export * from "./core/values/rotation.js";
+export * from "./core/values/color.js";
+export * from "./core/values/rect.js";
+export * from "./core/values/range.js";\n
+FILE: ./estructura.txt
+----------
+------------------------------
+\n
