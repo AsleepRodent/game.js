@@ -4,7 +4,7 @@
 
 Built upon the robust foundations of raylib, it provides a sophisticated Object-Oriented architectural pattern, empowering developers with rapid prototyping capabilities and highly modular tools.
 
-> **Note:** This engine is currently **under heavy development**. It is not yet feature-complete and will be officially available soon.
+> **Note:** This repository is currently a placeholder and is subject to significant architectural changes, API rewrites, and updates without prior notice.
 > 
 
 Ready to build? Explore the [test suite!](https://github.com/AsleepRodent/game.js/tree/main/tests)
