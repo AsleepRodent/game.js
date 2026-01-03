@@ -12,6 +12,10 @@ export class Renderer extends Module {
     constructor(attributes: ModuleAttributes) {
         super(attributes)
         this.window = new Window({parent:this, title:this.parent.name})
+        
+        this.render.connect(() => {
+            this.process();
+        });
     }
 
     public addToRenders(render: Render): void {
@@ -21,14 +25,14 @@ export class Renderer extends Module {
         this.lastSeen.set(render, r.GetTime());
     }
 
-    public override render(): void {
+    private process(): void {
         if (!this.enabled) return;
 
         const loop = this.parent.modules.loop;
         if (loop) {
             for (const layer of loop.queue) {
                 for (const module of layer) {
-                    if (module !== this) module.render?.();
+                    if (module !== this) module.render.fire();
                 }
             }
         }

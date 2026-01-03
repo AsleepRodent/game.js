@@ -59,11 +59,11 @@ export class Scene {
 
     public update(dt: number): void {
         if (!this.enabled) return;
-        for (const actor of this.cast) actor.update(dt);
+        for (const actor of this.cast) actor.update.fire(dt);
     }
 
     public render(): void {
         if (!this.enabled) return;
-        for (const actor of this.cast) actor.render();
+        for (const actor of this.cast) actor.render.fire();
     }
 }

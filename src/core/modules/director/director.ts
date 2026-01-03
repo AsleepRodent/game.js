@@ -11,7 +11,19 @@ export class Director extends Module {
     constructor(attributes: DirectorAttributes) {
         super(attributes);
         this.scenes = {};
-        this.currentScene = null
+        this.currentScene = null;
+
+        this.update.connect((dt: number) => {
+            if (this.enabled && this.currentScene) {
+                this.currentScene.update(dt);
+            }
+        });
+
+        this.render.connect(() => {
+            if (this.enabled && this.currentScene) {
+                this.currentScene.render();
+            }
+        });
     }
 
     public switchCurrentScene(target: Scene | string): void {
@@ -79,15 +91,5 @@ export class Director extends Module {
             }
             this.enabled = true;
         }
-    }
-
-    public override update(dt: number): void {
-        if (!this.enabled || !this.currentScene) return;
-        this.currentScene.update(dt);
-    }
-
-    public override render(): void {
-        if (!this.enabled || !this.currentScene) return;
-        this.currentScene.render();
     }
 }

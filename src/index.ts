@@ -1,3 +1,5 @@
+import type { Observer } from "./core/modules/dispatch/other/observer.js";
+
 export * from "./core/modules/module.js";
 export * from "./core/modules/game/game.js";
 export * from "./core/modules/loop/loop.js";
@@ -16,6 +18,7 @@ export * from "./core/modules/director/other/traits/frame.js";
 
 export * from "./core/modules/dispatch/dispatch.js";
 export * from "./core/modules/dispatch/other/signal.js";
+export * from "./core/modules/dispatch/other/observer.js";
 
 export * from "./core/values/value.js";
 export * from "./core/values/vector.js";

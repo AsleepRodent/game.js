@@ -17,7 +17,6 @@ export class Loop extends Module {
     public addToQueue(module: Module, layer: number): void {
         if (layer >= 0 && layer < this.queue.length) {
             const exists = this.queue.some(l => l.some(m => m.id === module.id));
-
             if (!exists) {
                 this.queue[layer]!.push(module);
             }
@@ -26,7 +25,6 @@ export class Loop extends Module {
 
     public removeFromQueue(target: Module | string): void {
         const idToFind = typeof target === "string" ? target : target.id;
-
         for (const layer of this.queue) {
             const index = layer.findIndex(m => m.id === idToFind);
             if (index !== -1) {
@@ -38,8 +36,10 @@ export class Loop extends Module {
 
     private run(): void {
         if (this.enabled) {
-            const renderer = this.parent.modules.renderer as Renderer;
-            (this.parent as Game).onStart?.();
+            const game = this.parent as Game;
+            const renderer = game.modules.renderer as Renderer;
+
+            game.onStart.fire();
 
             while (this.enabled && !r.WindowShouldClose()) {
                 const dt: number = r.GetFrameTime();
@@ -47,16 +47,16 @@ export class Loop extends Module {
                 for (const layer of this.queue) {
                     for (const module of layer) {
                         if (module.enabled) {
-                            module.update(dt);
+                            module.update.fire(dt);
                         }
                     }
                 }
 
                 if (renderer && renderer.enabled) {
-                    renderer.render();
+                    renderer.render.fire();
                 }
 
-                (this.parent as Game).onUpdate?.(dt);
+                game.onUpdate.fire(dt);
             }
             this.stop();
         }

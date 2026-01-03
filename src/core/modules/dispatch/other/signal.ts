@@ -1,12 +1,12 @@
 import type { Dispatch } from "../dispatch.js";
+
 import { nanoid } from "nanoid";
 
 export interface SignalAttributes {
-    parent: Dispatch;
+    parent?: Dispatch | null;
     name?: string;
     id?: string;
 }
-
 export class Connection {
     constructor(private disconnectFn: () => void) {}
     public disconnect(): void {
@@ -32,18 +32,18 @@ class InternalSignal {
 }
 
 export class Signal {
-    public parent: Dispatch;
+    public parent: Dispatch | null;
     public name: string;
     public id: string;
     private internal: InternalSignal;
 
     constructor(attributes: SignalAttributes) {
-        this.parent = attributes.parent;
+        this.parent = attributes.parent ?? null;
         this.name = attributes.name ?? "Signal";
         this.id = attributes.id ?? nanoid(8);
         this.internal = new InternalSignal();
 
-        if (this.parent && "addToSignals" in this.parent) {
+        if (this.parent && typeof (this.parent as any).addToSignals === "function") {
             (this.parent as any).addToSignals(this);
         }
     }
